@@ -1,0 +1,26 @@
+# Python関連
+*.py
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# 開発用ファイル
+*.qgz
+*.psd
+*.numbers
+*のコピー.py
+*超安定版*.py
+
+# 古いHTMLファイル（不要なバージョン）
+presentation_tokigawa_restart_1.html
+restart.html
+suijin_map.html
+
+# 大きなファイル（GitHubの制限を超えるため）
+tiles_simple/
+suijin_monument_map.html
+
+# その他
+.DS_Store
