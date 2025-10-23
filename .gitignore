@@ -1,26 +1,22 @@
-# Python関連
-*.py
+# 大きすぎるファイル（元データ）
+merged_rivers.geojson
+
+# 旧バージョンのPMTiles
+hazard_rivers.pmtiles
+hazard_rivers_z6-15.pmtiles
+
+# ローカル開発用
+server.py
 __pycache__/
 *.pyc
-*.pyo
-.venv/
-venv/
 
-# 開発用ファイル
-*.qgz
-*.psd
-*.numbers
-*のコピー.py
-*超安定版*.py
-
-# 古いHTMLファイル（不要なバージョン）
-presentation_tokigawa_restart_1.html
-restart.html
-suijin_map.html
-
-# 大きなファイル（GitHubの制限を超えるため）
-tiles_simple/
+# 旧バージョンのHTML
 suijin_monument_map.html
+suijin_monument_map.py
+test_hazard_map.html
+
+# macOS
+.DS_Store
 
 # その他
-.DS_Store
+*.mbtiles

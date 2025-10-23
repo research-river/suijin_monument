@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>荒川流域 水神碑・水神祠調査地図 (MapLibre GL JS版)</title>
+
+    <!-- MapLibre GL JS -->
+    <script src='https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js'></script>
+    <link href='https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css' rel='stylesheet' />
+
+    <!-- PMTiles -->
+    <script src="https://unpkg.com/pmtiles@3.0.3/dist/pmtiles.js"></script>
+
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* 凡例 */
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-height: 80vh;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .legend.show {
+            display: block;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .legend-item {
+            margin: 4px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .legend-color {
+            display: inline-block;
+            width: 20px;
+            height: 14px;
+            margin-right: 8px;
+            border: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        /* ローディング表示 */
+        .loading {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        /* ポップアップのスタイル */
+        .maplibregl-popup-content {
+            padding: 0;
+            max-width: 400px;
+        }
+
+        .popup-content {
+            font-family: sans-serif;
+            padding: 15px;
+            max-width: 400px;
+        }
+
+        .popup-title {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .popup-info {
+            margin-bottom: 10px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .popup-info b {
+            color: #333;
+        }
+
+        .popup-image {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .popup-image img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 3px;
+        }
+
+        /* 書籍カード用スタイル */
+        .card-container {
+            position: relative;
+            width: 380px;
+            min-height: 220px;
+            font-family: 'Times New Roman', serif;
+        }
+
+        .book-card {
+            position: absolute;
+            width: 320px;
+            min-height: 180px;
+            font-size: 13px;
+            line-height: 1.5;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 12px;
+            background-color: #fdf6e3;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        .book-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 4px 4px 12px rgba(0,0,0,0.4);
+        }
+
+        /* レイヤーコントロール */
+        .layer-control {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1;
+        }
+
+        .layer-control-header {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .layer-control-content {
+            padding: 10px;
+        }
+
+        .layer-control-content.collapsed {
+            display: none;
+        }
+
+        .layer-group {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .layer-group:last-child {
+            border-bottom: none;
+        }
+
+        .layer-group-title {
+            font-weight: bold;
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .layer-item input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .layer-item label {
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .separator {
+            border-top: 2px solid #ccc;
+            margin: 8px 0;
+        }
+
+        /* ズームレベル表示 */
+        .zoom-level {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div id="loading" class="loading">地図を読み込み中...</div>
+
+    <!-- ズームレベル表示 -->
+    <div class="zoom-level" id="zoom-level">ズーム: 11</div>
+
+    <div class="legend" id="hazard-legend">
+        <div class="legend-title">浸水深レベル</div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#ffffcc;"></span>
+            <span>レベル1: 0.5m未満</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#ffeda0;"></span>
+            <span>レベル2: 0.5-3.0m</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#feb24c;"></span>
+            <span>レベル3: 3.0-5.0m</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#ff6b6b;"></span>
+            <span>レベル4: 5.0-10.0m</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-color" style="background:#bd0026;"></span>
+            <span>レベル5: 10.0m以上</span>
+        </div>
+    </div>
+
+    <!-- レイヤーコントロール -->
+    <div class="layer-control">
+        <div class="layer-control-header" onclick="toggleLayerControl()">
+            レイヤー選択 ▼
+        </div>
+        <div class="layer-control-content" id="layer-control-content">
+            <!-- 地図タイルレイヤー -->
+            <div class="layer-group">
+                <div class="layer-group-title">地図タイル</div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-konjaku" onchange="toggleLayer('konjaku', this.checked)">
+                    <label for="layer-konjaku">今昔マップ(1894-1915年)</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-aerial" onchange="toggleLayer('aerial', this.checked)">
+                    <label for="layer-aerial">航空写真</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-std" onchange="toggleLayer('std', this.checked)">
+                    <label for="layer-std">標準地図</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-relief" checked onchange="toggleLayer('relief', this.checked)">
+                    <label for="layer-relief">色別標高図</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-hillshade" checked onchange="toggleLayer('hillshade', this.checked)">
+                    <label for="layer-hillshade">陰影起伏図</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-esri" onchange="toggleLayer('esri', this.checked)">
+                    <label for="layer-esri">ESRI World Topo</label>
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <!-- 石碑レイヤー -->
+            <div class="layer-group">
+                <div class="layer-group-title">石碑</div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-water" checked onchange="toggleLayer('water', this.checked)">
+                    <label for="layer-water">水神碑・水天宮碑</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-dragon" checked onchange="toggleLayer('dragon', this.checked)">
+                    <label for="layer-dragon">九頭龍・龍神碑</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-benten" checked onchange="toggleLayer('benten', this.checked)">
+                    <label for="layer-benten">弁才天碑・市杵島姫命碑</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-other" checked onchange="toggleLayer('other', this.checked)">
+                    <label for="layer-other">その他</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-arakawa" onchange="toggleLayer('arakawa', this.checked)">
+                    <label for="layer-arakawa">荒川本流と支流</label>
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <!-- ハザードマップレイヤー -->
+            <div class="layer-group">
+                <div class="layer-group-title">災害関連</div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-hazard" onchange="toggleLayer('hazard', this.checked)">
+                    <label for="layer-hazard">浸水想定区域(103河川)</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-typhoon" onchange="toggleLayer('typhoon', this.checked)">
+                    <label for="layer-typhoon">台風19号 都幾川地区</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-breach" onchange="toggleLayer('breach', this.checked)">
+                    <label for="layer-breach">2019年決壊箇所</label>
+                </div>
+            </div>
+
+            <div class="separator"></div>
+
+            <!-- その他レイヤー -->
+            <div class="layer-group">
+                <div class="layer-group-title">その他</div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-books" onchange="toggleLayer('books', this.checked)">
+                    <label for="layer-books">水神碑資料</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-denshouhi" onchange="toggleLayer('denshouhi', this.checked)">
+                    <label for="layer-denshouhi">自然災害伝承碑</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let map;
+        let monumentsData = [];
+        let booksData = [];
+        let currentPopup = null;
+
+        // PMTiles プロトコル登録
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol("pmtiles", protocol.tile);
+
+        // 色設定
+        const colors = {
+            water: { stroke: 'Blue', fill: 'Lightblue' },
+            dragon: { stroke: 'green', fill: 'Lightgreen' },
+            benten: { stroke: 'Darkred', fill: 'Orange' },
+            other: { stroke: 'darkgreen', fill: 'darkgreen' }
+        };
+
+        // ローディング表示の更新
+        function updateLoadingStatus(message) {
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.textContent = message;
+            }
+        }
+
+        // 浸水深の色
+        function getFloodColor(depth) {
+            const colorMap = {
+                '1': '#ffffcc',
+                '2': '#ffeda0',
+                '3': '#feb24c',
+                '4': '#ff6b6b',
+                '5': '#bd0026'
+            };
+            return colorMap[String(depth)] || '#999999';
+        }
+
+        // 地図の初期化
+        function initMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://gsi-cyberjapan.github.io/gsivectortile-mapbox-gl-js/std.json',
+                center: [139.404210, 35.939096],
+                zoom: 11,
+                pitch: 0,
+                bearing: 0
+            });
+
+            // ナビゲーションコントロール追加
+            map.addControl(new maplibregl.NavigationControl(), 'top-left');
+            map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+
+            map.on('load', async () => {
+                console.log('地図読み込み完了');
+
+                // 基本レイヤーをすぐに追加
+                addBaseLayers();
+
+                // ハザードマップを最初に読み込み（下層に配置）
+                updateLoadingStatus('ハザードマップを読み込み中...');
+                addBreachMarkers();
+                await addHazardMap();
+
+                // 河川データを読み込み
+                updateLoadingStatus('河川データを読み込み中...');
+                await loadArakawaRiver();
+
+                // 石碑データを読み込み（上層に配置）
+                updateLoadingStatus('石碑データを読み込み中...');
+                await loadMonuments();
+
+                // バックグラウンドで残りを読み込み
+                setTimeout(() => {
+                    loadBooks();
+                    loadDenshouhi();
+                }, 100);
+
+                document.getElementById('loading').style.display = 'none';
+            });
+
+            map.on('error', (e) => {
+                console.error('地図エラー:', e);
+            });
+
+            // ズームレベル表示の更新
+            map.on('zoom', () => {
+                const zoom = map.getZoom();
+                document.getElementById('zoom-level').textContent = `ズーム: ${zoom.toFixed(1)}`;
+            });
+
+            // 初期ズームレベルを表示
+            map.on('load', () => {
+                const zoom = map.getZoom();
+                document.getElementById('zoom-level').textContent = `ズーム: ${zoom.toFixed(1)}`;
+            });
+        }
+
+        // ベースレイヤーの追加
+        function addBaseLayers() {
+            // 色別標高図
+            map.addSource('relief', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/relief/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 15
+            });
+
+            map.addLayer({
+                id: 'relief',
+                type: 'raster',
+                source: 'relief',
+                paint: { 'raster-opacity': 0.1 },
+                layout: { visibility: 'visible' }
+            });
+
+            // 陰影起伏図
+            map.addSource('hillshade', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/hillshademap/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 16
+            });
+
+            map.addLayer({
+                id: 'hillshade',
+                type: 'raster',
+                source: 'hillshade',
+                paint: { 'raster-opacity': 0.2 },
+                layout: { visibility: 'visible' }
+            });
+
+            // 今昔マップ
+            map.addSource('konjaku', {
+                type: 'raster',
+                tiles: ['https://ktgis.net/kjmapw/kjtilemap/kanto/00/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                scheme: 'tms',
+                attribution: '今昔マップ on the web',
+                maxzoom: 16
+            });
+
+            map.addLayer({
+                id: 'konjaku',
+                type: 'raster',
+                source: 'konjaku',
+                paint: { 'raster-opacity': 0.6 },
+                layout: { visibility: 'none' }
+            });
+
+            // 航空写真
+            map.addSource('aerial', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 18
+            });
+
+            map.addLayer({
+                id: 'aerial',
+                type: 'raster',
+                source: 'aerial',
+                paint: { 'raster-opacity': 1 },
+                layout: { visibility: 'none' }
+            });
+
+            // 標準地図
+            map.addSource('std', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 18
+            });
+
+            map.addLayer({
+                id: 'std',
+                type: 'raster',
+                source: 'std',
+                paint: { 'raster-opacity': 1 },
+                layout: { visibility: 'none' }
+            });
+
+            // ESRI World Topo
+            map.addSource('esri', {
+                type: 'raster',
+                tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
+                tileSize: 256,
+                attribution: 'Tiles &copy; Esri',
+                maxzoom: 18
+            });
+
+            map.addLayer({
+                id: 'esri',
+                type: 'raster',
+                source: 'esri',
+                paint: { 'raster-opacity': 0.5 },
+                layout: { visibility: 'none' }
+            });
+
+            // 台風19号タイル
+            map.addSource('typhoon', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/20191012typhoon19_tokigawa_1013do/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 18
+            });
+
+            map.addLayer({
+                id: 'typhoon',
+                type: 'raster',
+                source: 'typhoon',
+                paint: { 'raster-opacity': 0.7 },
+                layout: { visibility: 'none' }
+            });
+        }
+
+        // 石碑データの読み込み
+        async function loadMonuments() {
+            try {
+                const response = await fetch('restart.csv');
+                const csvText = await response.text();
+
+                Papa.parse(csvText, {
+                    header: true,
+                    complete: (results) => {
+                        monumentsData = results.data.filter(row => row.lat && row.lon);
+                        addMonumentMarkers();
+                        console.log('石碑データ読み込み完了:', monumentsData.length, '件');
+                    }
+                });
+            } catch (error) {
+                console.error('石碑データの読み込みエラー:', error);
+            }
+        }
+
+        // 石碑マーカーの追加
+        function addMonumentMarkers() {
+            const types = ['water', 'dragon', 'benten', 'other'];
+
+            types.forEach(type => {
+                const features = monumentsData
+                    .filter(m => m.type === type)
+                    .map(m => ({
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Point',
+                            coordinates: [parseFloat(m.lon), parseFloat(m.lat)]
+                        },
+                        properties: { ...m }
+                    }));
+
+                map.addSource(`monuments-${type}`, {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: features
+                    }
+                });
+
+                map.addLayer({
+                    id: `monuments-${type}`,
+                    type: 'circle',
+                    source: `monuments-${type}`,
+                    paint: {
+                        'circle-radius': 8,
+                        'circle-color': colors[type].fill,
+                        'circle-stroke-color': colors[type].stroke,
+                        'circle-stroke-width': 2,
+                        'circle-opacity': 0.7
+                    },
+                    layout: { visibility: 'visible' }
+                });
+
+                // クリックイベント
+                map.on('click', `monuments-${type}`, (e) => {
+                    const props = e.features[0].properties;
+                    showMonumentPopup(props, e.lngLat);
+                });
+
+                // カーソル変更
+                map.on('mouseenter', `monuments-${type}`, () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', `monuments-${type}`, () => {
+                    map.getCanvas().style.cursor = '';
+                });
+            });
+        }
+
+        // 石碑ポップアップの表示
+        function showMonumentPopup(props, lngLat) {
+            let photoHtml = '';
+
+            // 写真がある場合は表示
+            if (props.photo_filename && props.photo_filename.trim() !== '') {
+                const photoPath = `monumentphoto/medium_res/${props.photo_filename}`;
+                photoHtml = `
+                    <div class="popup-image">
+                        <img src="${photoPath}" alt="${props.name || ''}"
+                             onerror="this.parentElement.style.display='none';"
+                             style="max-width: 370px; height: auto; border-radius: 3px;">
+                    </div>
+                `;
+            }
+
+            const popupHtml = `
+                <div class="popup-content">
+                    <h4 class="popup-title">${props.name || ''}</h4>
+                    <div class="popup-info">
+                        <b>建立年:</b> ${props.year || ''}<br>
+                        <b>サイズ:</b> ${props.size || ''}<br>
+                        <b>所在地:</b> ${props.address || ''}<br>
+                        <b>座標:</b> ${props.coordinates_dms || ''}<br>
+                        <b>銘文:</b> ${props.inscription || ''}<br>
+                        <b>コメント:</b> ${props.comment || ''}<br>
+                        <b>水難よけ:</b> ${props['水難避け'] || ''}<br>
+                        <b>働きについて:</b> ${props['機能の解説　水難避けなら○　(舟運の安全祈願も水難避けとして含む)'] || ''}<br>
+                        <b>調査日:</b> ${props.Survey_date || ''}
+                    </div>
+                    ${photoHtml}
+                </div>
+            `;
+
+            if (currentPopup) {
+                currentPopup.remove();
+            }
+
+            currentPopup = new maplibregl.Popup({ maxWidth: '420px' })
+                .setLngLat(lngLat)
+                .setHTML(popupHtml)
+                .addTo(map);
+        }
+
+        // 書籍データの読み込み
+        async function loadBooks() {
+            try {
+                const response = await fetch('資料.csv');
+                const csvText = await response.text();
+
+                Papa.parse(csvText, {
+                    header: true,
+                    complete: (results) => {
+                        booksData = results.data.filter(row => row.lat && row.lon);
+                        addBookMarkers();
+                        console.log('書籍データ読み込み完了:', booksData.length, '件');
+                    }
+                });
+            } catch (error) {
+                console.error('書籍データの読み込みエラー:', error);
+            }
+        }
+
+        // 書籍マーカーの追加
+        function addBookMarkers() {
+            // 位置情報でグループ化
+            const groupedBooks = {};
+
+            booksData.forEach(book => {
+                const key = `${book.lat},${book.lon}`;
+                if (!groupedBooks[key]) {
+                    groupedBooks[key] = {
+                        location: book.location_name,
+                        lat: parseFloat(book.lat),
+                        lon: parseFloat(book.lon),
+                        books: []
+                    };
+                }
+                groupedBooks[key].books.push(book);
+            });
+
+            const features = Object.values(groupedBooks).map(group => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [group.lon, group.lat]
+                },
+                properties: {
+                    location: group.location,
+                    count: group.books.length,
+                    books: JSON.stringify(group.books)
+                }
+            }));
+
+            map.addSource('books', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: features
+                }
+            });
+
+            // 青色のピン型マーカーアイコンを作成
+            const bookPinSvg = `
+                <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15,0 C6.7,0 0,6.7 0,15 C0,23.3 15,40 15,40 C15,40 30,23.3 30,15 C30,6.7 23.3,0 15,0 Z"
+                          fill="#1E90FF" stroke="#FFFFFF" stroke-width="2"/>
+                    <circle cx="15" cy="15" r="6" fill="#FFFFFF"/>
+                </svg>
+            `;
+            const bookPinImage = new Image(30, 40);
+            bookPinImage.onload = () => {
+                if (!map.hasImage('book-pin')) {
+                    map.addImage('book-pin', bookPinImage);
+                }
+            };
+            bookPinImage.src = 'data:image/svg+xml;base64,' + btoa(bookPinSvg);
+
+            // シンボルレイヤーを追加（青いピン型マーカー）
+            map.addLayer({
+                id: 'books',
+                type: 'symbol',
+                source: 'books',
+                layout: {
+                    'icon-image': 'book-pin',
+                    'icon-size': 1,
+                    'icon-anchor': 'bottom',
+                    'icon-allow-overlap': true,
+                    visibility: 'none'
+                }
+            });
+
+            // クリックイベント
+            map.on('click', 'books', (e) => {
+                const props = e.features[0].properties;
+                const books = JSON.parse(props.books);
+                showBooksPopup(props.location, books, e.lngLat);
+            });
+
+            // カーソル変更
+            map.on('mouseenter', 'books', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'books', () => {
+                map.getCanvas().style.cursor = '';
+            });
+        }
+
+        // 書籍ポップアップの表示
+        function showBooksPopup(location, books, lngLat) {
+            let cardsHtml = '';
+
+            books.forEach((book, index) => {
+                const top = index * 20;
+                const left = index * 20;
+                const zIndex = books.length - index;
+
+                cardsHtml += `
+                    <div class="book-card" id="card-${index}"
+                         style="top: ${top}px; left: ${left}px; z-index: ${zIndex};"
+                         onclick="bringCardToFront('card-${index}', ${books.length})">
+                        <div style="margin-bottom: 6px;"><b>${book.title || ''}</b> / ${book.author || ''}</div>
+                        <div style="margin-bottom: 6px;">${book.publisher || ''}</div>
+                        <div style="margin-bottom: 6px;">${book.size || ''}</div>
+                        <div style="margin-bottom: 6px;">注記: ${book.notes || ''}</div>
+                        <div style="font-size: 12px; color: #333;">
+                            所蔵: <a href="${book.library || '#'}" target="_blank" rel="noopener noreferrer">${book.library || ''}</a>
+                        </div>
+                    </div>
+                `;
+            });
+
+            const width = 320 + (books.length * 20) + 20;
+            const height = 180 + (books.length * 20) + 20;
+
+            const popupHtml = `
+                <div class="card-container" style="width: ${width}px; min-height: ${height}px;">
+                    ${cardsHtml}
+                </div>
+            `;
+
+            if (currentPopup) {
+                currentPopup.remove();
+            }
+
+            currentPopup = new maplibregl.Popup({ maxWidth: `${width + 20}px` })
+                .setLngLat(lngLat)
+                .setHTML(popupHtml)
+                .addTo(map);
+        }
+
+        // カードを前面に
+        let maxZ = 100;
+        function bringCardToFront(cardId, bookCount) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                maxZ++;
+                card.style.zIndex = maxZ;
+            }
+        }
+
+        // 災害伝承碑の読み込み
+        async function loadDenshouhi() {
+            try {
+                const response = await fetch('denshouhi.geojson');
+                const geojson = await response.json();
+
+                // 洪水のみフィルタリング
+                const floodFeatures = geojson.features.filter(f =>
+                    f.properties['災害種別'] && f.properties['災害種別'].includes('洪水')
+                );
+
+                map.addSource('denshouhi', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: floodFeatures
+                    }
+                });
+
+                // 紫色のピン型マーカーアイコンを作成
+                const denshouhiPinSvg = `
+                    <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15,0 C6.7,0 0,6.7 0,15 C0,23.3 15,40 15,40 C15,40 30,23.3 30,15 C30,6.7 23.3,0 15,0 Z"
+                              fill="#9370DB" stroke="#FFFFFF" stroke-width="2"/>
+                        <circle cx="15" cy="15" r="6" fill="#FFFFFF"/>
+                    </svg>
+                `;
+                const denshouhiPinImage = new Image(30, 40);
+                denshouhiPinImage.onload = () => {
+                    if (!map.hasImage('denshouhi-pin')) {
+                        map.addImage('denshouhi-pin', denshouhiPinImage);
+                    }
+                };
+                denshouhiPinImage.src = 'data:image/svg+xml;base64,' + btoa(denshouhiPinSvg);
+
+                // シンボルレイヤーとして追加
+                map.addLayer({
+                    id: 'denshouhi',
+                    type: 'symbol',
+                    source: 'denshouhi',
+                    layout: {
+                        'icon-image': 'denshouhi-pin',
+                        'icon-size': 1,
+                        'icon-anchor': 'bottom',
+                        'icon-allow-overlap': true,
+                        visibility: 'none'
+                    }
+                });
+
+                // クリックイベント
+                map.on('click', 'denshouhi', (e) => {
+                    const props = e.features[0].properties;
+                    const popupHtml = `
+                        <div class="popup-content">
+                            <div class="popup-info">
+                                <b>名称:</b> ${props['碑名'] || ''}<br>
+                                <b>災害種別:</b> ${props['災害名'] || ''}<br>
+                                <b>詳細:</b> ${props['災害種別'] || ''}<br>
+                                <b>碑文/由来:</b> ${props['伝承内容'] || ''}
+                            </div>
+                        </div>
+                    `;
+
+                    if (currentPopup) {
+                        currentPopup.remove();
+                    }
+
+                    currentPopup = new maplibregl.Popup({ maxWidth: '300px' })
+                        .setLngLat(e.lngLat)
+                        .setHTML(popupHtml)
+                        .addTo(map);
+                });
+
+                // カーソル変更
+                map.on('mouseenter', 'denshouhi', () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', 'denshouhi', () => {
+                    map.getCanvas().style.cursor = '';
+                });
+
+                console.log('災害伝承碑読み込み完了:', floodFeatures.length, '件');
+            } catch (error) {
+                console.error('災害伝承碑の読み込みエラー:', error);
+            }
+        }
+
+        // 荒川流路の読み込み
+        async function loadArakawaRiver() {
+            try {
+                const response = await fetch('arakawa_river_course.geojson');
+                const geojson = await response.json();
+
+                map.addSource('arakawa', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                map.addLayer({
+                    id: 'arakawa',
+                    type: 'line',
+                    source: 'arakawa',
+                    paint: {
+                        'line-color': '#1c17ce',
+                        'line-width': [
+                            'case',
+                            ['==', ['get', 'W05_004'], '荒川'],
+                            6,
+                            3
+                        ],
+                        'line-opacity': 0.7
+                    },
+                    layout: { visibility: 'none' }
+                });
+
+                // ホバーで河川名表示
+                map.on('click', 'arakawa', (e) => {
+                    const props = e.features[0].properties;
+
+                    if (currentPopup) {
+                        currentPopup.remove();
+                    }
+
+                    currentPopup = new maplibregl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`<div style="padding: 10px;"><b>河川名:</b> ${props.W05_004 || ''}</div>`)
+                        .addTo(map);
+                });
+
+                console.log('荒川流路読み込み完了');
+            } catch (error) {
+                console.error('荒川流路の読み込みエラー:', error);
+            }
+        }
+
+        // 決壊箇所マーカーの追加
+        function addBreachMarkers() {
+            const breachData = [
+                { coordinates: [139.373205, 36.023104], num: '①', text: '都幾川左岸 堤防欠損', color: '#FFA500' },
+                { coordinates: [139.378592, 36.021721], num: '②', text: '都幾川左岸 堤防欠損', color: '#FFA500' },
+                { coordinates: [139.378489, 36.019106], num: '③', text: '都幾川右岸 堤防欠損', color: '#FFA500' },
+                { coordinates: [139.422118, 35.998241], num: '④', text: '都幾川右岸 決壊', color: '#FF0000' },
+                { coordinates: [139.420431, 35.994486], num: '⑤', text: '越辺川左岸 決壊', color: '#FF0000' },
+                { coordinates: [139.466404, 35.960089], num: '⑥', text: '越辺川右岸 決壊', color: '#FF0000' }
+            ];
+
+            const features = breachData.map(b => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: b.coordinates
+                },
+                properties: b
+            }));
+
+            map.addSource('breach', {
+                type: 'geojson',
+                data: {
+                    type: 'FeatureCollection',
+                    features: features
+                }
+            });
+
+            map.addLayer({
+                id: 'breach',
+                type: 'circle',
+                source: 'breach',
+                paint: {
+                    'circle-radius': 10,
+                    'circle-color': ['get', 'color'],
+                    'circle-stroke-color': '#000000',
+                    'circle-stroke-width': 1,
+                    'circle-opacity': 0.7
+                },
+                layout: { visibility: 'none' }
+            });
+
+            // クリックイベント
+            map.on('click', 'breach', (e) => {
+                const props = e.features[0].properties;
+
+                if (currentPopup) {
+                    currentPopup.remove();
+                }
+
+                currentPopup = new maplibregl.Popup()
+                    .setLngLat(e.lngLat)
+                    .setHTML(`<div style="padding: 10px; white-space: nowrap;"><b>${props.num} ${props.text}</b></div>`)
+                    .addTo(map);
+            });
+
+            // カーソル変更
+            map.on('mouseenter', 'breach', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'breach', () => {
+                map.getCanvas().style.cursor = '';
+            });
+        }
+
+        // ハザードマップの追加（PMTiles使用）
+        async function addHazardMap() {
+            try {
+                console.log('ハザードマップ読み込み開始...');
+
+                // PMTilesファイルを読み込み（ズーム9-15対応版）
+                const pmtilesUrl = new URL('hazard_rivers_z9-15.pmtiles', window.location.href).href;
+                console.log('PMTiles URL:', pmtilesUrl);
+
+                const p = new pmtiles.PMTiles(pmtilesUrl);
+
+                // PMTilesのメタデータを取得
+                const header = await p.getHeader();
+                console.log('PMTiles header:', header);
+
+                // プロトコルに追加
+                protocol.add(p);
+
+                // PMTilesソースを追加（ズーム9-15対応）
+                map.addSource('hazard', {
+                    type: 'vector',
+                    url: `pmtiles://${pmtilesUrl}`,
+                    minzoom: 9,
+                    maxzoom: 15
+                });
+
+                console.log('ハザードソース追加完了');
+
+                // ポリゴンレイヤーを追加（ズーム9-12で表示、13以上で非表示）
+                map.addLayer({
+                    id: 'hazard',
+                    type: 'fill',
+                    source: 'hazard',
+                    'source-layer': 'rivers',
+                    minzoom: 9,  // ズーム9から表示
+                    maxzoom: 18, // ズーム15以上はオーバーズームで表示
+                    paint: {
+                        'fill-color': [
+                            'match',
+                            ['get', 'A31a_205'],
+                            1, '#ffffcc',
+                            2, '#ffeda0',
+                            3, '#feb24c',
+                            4, '#ff6b6b',
+                            5, '#bd0026',
+                            6, '#800026',
+                            '#999999'
+                        ],
+                        'fill-opacity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            9, 0.85,  // ズーム9では透明度85%（濃い）
+                            12, 0.85, // ズーム12では透明度85%（濃い）
+                            13, 0.6,  // ズーム13では透明度60%（やや薄く）
+                            15, 0.5   // ズーム15では透明度50%（半透明）
+                        ]
+                    },
+                    layout: { visibility: 'none' }
+                });
+
+                console.log('ハザードレイヤー追加完了');
+
+                // クリックイベント
+                map.on('click', 'hazard', (e) => {
+                    if (!e.features || e.features.length === 0) return;
+
+                    const props = e.features[0].properties;
+
+                    if (currentPopup) {
+                        currentPopup.remove();
+                    }
+
+                    currentPopup = new maplibregl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div style="font-family: sans-serif; font-size: 12px; padding: 10px;">
+                                <div style="font-weight: bold; margin-bottom: 5px;">浸水想定区域情報</div>
+                                <div><b>河川名:</b> ${props.A31a_202 || 'データなし'}</div>
+                                <div><b>浸水深レベル:</b> ${props.A31a_205 || 'データなし'}</div>
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+
+                // カーソル変更
+                map.on('mouseenter', 'hazard', () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', 'hazard', () => {
+                    map.getCanvas().style.cursor = '';
+                });
+
+                console.log('ハザードマップ読み込み完了');
+            } catch (error) {
+                console.error('ハザードマップの読み込みエラー:', error);
+                console.error('エラー詳細:', error.stack);
+            }
+        }
+
+        // レイヤー表示切替
+        function toggleLayer(layerId, visible) {
+            const visibility = visible ? 'visible' : 'none';
+
+            if (map.getLayer(layerId)) {
+                map.setLayoutProperty(layerId, 'visibility', visibility);
+            }
+
+            // 各石碑タイプのレイヤー
+            if (['water', 'dragon', 'benten', 'other'].includes(layerId)) {
+                const fullLayerId = `monuments-${layerId}`;
+                if (map.getLayer(fullLayerId)) {
+                    map.setLayoutProperty(fullLayerId, 'visibility', visibility);
+                }
+            }
+
+
+            // ハザードマップの凡例表示切替
+            if (layerId === 'hazard') {
+                const legend = document.getElementById('hazard-legend');
+                if (visible) {
+                    legend.classList.add('show');
+                } else {
+                    legend.classList.remove('show');
+                }
+            }
+        }
+
+        // レイヤーコントロールの開閉
+        function toggleLayerControl() {
+            const content = document.getElementById('layer-control-content');
+            content.classList.toggle('collapsed');
+        }
+
+        // URLパラメータから座標を取得して移動
+        function checkURLParams() {
+            const params = new URLSearchParams(window.location.search);
+            const lat = params.get('lat');
+            const lon = params.get('lon');
+
+            if (lat && lon) {
+                map.flyTo({
+                    center: [parseFloat(lon), parseFloat(lat)],
+                    zoom: 16,
+                    duration: 2000
+                });
+            }
+        }
+
+        // 初期化
+        window.addEventListener('load', () => {
+            initMap();
+            map.on('load', () => {
+                checkURLParams();
+            });
+        });
+    </script>
+</body>
+</html>
