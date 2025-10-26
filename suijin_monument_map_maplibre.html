@@ -94,6 +94,17 @@
             max-width: 400px;
         }
 
+        /* 書籍カード用ポップアップ - 背景透明 */
+        .book-popup .maplibregl-popup-content {
+            background: transparent;
+            box-shadow: none;
+            border: none;
+        }
+
+        .book-popup .maplibregl-popup-tip {
+            display: none;
+        }
+
         .popup-content {
             font-family: sans-serif;
             padding: 15px;
@@ -1008,7 +1019,10 @@
                 currentPopup.remove();
             }
 
-            currentPopup = new maplibregl.Popup({ maxWidth: `${width + 20}px` })
+            currentPopup = new maplibregl.Popup({
+                maxWidth: `${width + 20}px`,
+                className: 'book-popup'
+            })
                 .setLngLat(lngLat)
                 .setHTML(popupHtml)
                 .addTo(map);
