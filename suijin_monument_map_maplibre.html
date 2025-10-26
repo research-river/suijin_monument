@@ -240,6 +240,51 @@
             z-index: 1;
             pointer-events: none;
         }
+
+        /* 3D設定コントロール */
+        .settings-control {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            padding: 10px;
+            z-index: 1;
+            min-width: 200px;
+            display: none; /* 初期状態は非表示 */
+        }
+
+        .settings-control.show {
+            display: block;
+        }
+
+        .settings-title {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .setting-item {
+            margin-bottom: 10px;
+        }
+
+        .setting-label {
+            font-size: 11px;
+            color: #666;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .setting-item input[type="range"] {
+            width: 100%;
+        }
+
+        .setting-value {
+            font-size: 11px;
+            color: #333;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -284,6 +329,14 @@
             <div class="layer-group">
                 <div class="layer-group-title">地図タイル</div>
                 <div class="layer-item">
+                    <input type="checkbox" id="layer-gsi-vector" checked onchange="toggleLayer('gsi-vector', this.checked)">
+                    <label for="layer-gsi-vector">国土地理院 Vector</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-pale" onchange="toggleLayer('pale', this.checked)">
+                    <label for="layer-pale">国土地理院 淡色地図</label>
+                </div>
+                <div class="layer-item">
                     <input type="checkbox" id="layer-konjaku" onchange="toggleLayer('konjaku', this.checked)">
                     <label for="layer-konjaku">今昔マップ(1894-1915年)</label>
                 </div>
@@ -296,16 +349,20 @@
                     <label for="layer-std">標準地図</label>
                 </div>
                 <div class="layer-item">
+                    <input type="checkbox" id="layer-osm" onchange="toggleLayer('osm', this.checked)">
+                    <label for="layer-osm">OpenStreetMap</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-esri" onchange="toggleLayer('esri', this.checked)">
+                    <label for="layer-esri">ESRI World Topo</label>
+                </div>
+                <div class="layer-item">
                     <input type="checkbox" id="layer-relief" checked onchange="toggleLayer('relief', this.checked)">
                     <label for="layer-relief">色別標高図</label>
                 </div>
                 <div class="layer-item">
                     <input type="checkbox" id="layer-hillshade" checked onchange="toggleLayer('hillshade', this.checked)">
                     <label for="layer-hillshade">陰影起伏図</label>
-                </div>
-                <div class="layer-item">
-                    <input type="checkbox" id="layer-esri" onchange="toggleLayer('esri', this.checked)">
-                    <label for="layer-esri">ESRI World Topo</label>
                 </div>
             </div>
 
@@ -368,7 +425,41 @@
                     <input type="checkbox" id="layer-denshouhi" onchange="toggleLayer('denshouhi', this.checked)">
                     <label for="layer-denshouhi">自然災害伝承碑</label>
                 </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-tonegawa" onchange="toggleLayer('tonegawa', this.checked)">
+                    <label for="layer-tonegawa">利根川本流と支流</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-tamagawa" onchange="toggleLayer('tamagawa', this.checked)">
+                    <label for="layer-tamagawa">多摩川・相模川本流と支流</label>
+                </div>
             </div>
+
+            <div class="separator"></div>
+
+            <!-- 3D表示設定 -->
+            <div class="layer-group">
+                <div class="layer-group-title">表示設定</div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-3d-terrain" onchange="toggle3DTerrain(this.checked)">
+                    <label for="layer-3d-terrain">3D地形表示</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D設定コントロール -->
+    <div class="settings-control" id="settings-control">
+        <div class="settings-title">3D設定</div>
+        <div class="setting-item">
+            <label class="setting-label">地形の高さ倍率: <span class="setting-value" id="exaggeration-value">2.0</span></label>
+            <input type="range" id="exaggeration-slider" min="0" max="5" step="0.1" value="2.0"
+                   oninput="updateExaggeration(this.value)">
+        </div>
+        <div class="setting-item">
+            <label class="setting-label">視点の傾き: <span class="setting-value" id="pitch-value">60</span>°</label>
+            <input type="range" id="pitch-slider" min="0" max="85" step="5" value="60"
+                   oninput="updatePitch(this.value)">
         </div>
     </div>
 
@@ -423,8 +514,25 @@
             });
 
             // ナビゲーションコントロール追加
-            map.addControl(new maplibregl.NavigationControl(), 'top-left');
+            map.addControl(new maplibregl.NavigationControl({
+                visualizePitch: true  // 3D表示時のピッチ可視化
+            }), 'top-left');
             map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+
+            // 3D地形表示時の慣性スクロール対策
+            const stopAllAnimations = () => {
+                if (map.getTerrain()) {  // 3D表示時のみ
+                    map.stop();
+                }
+            };
+
+            map.on('mouseup', stopAllAnimations);
+            map.on('touchend', stopAllAnimations);
+            map.on('wheel', () => {
+                if (map.getTerrain()) {
+                    setTimeout(stopAllAnimations, 50);
+                }
+            });
 
             map.on('load', async () => {
                 console.log('地図読み込み完了');
@@ -440,6 +548,8 @@
                 // 河川データを読み込み
                 updateLoadingStatus('河川データを読み込み中...');
                 await loadArakawaRiver();
+                await loadTonegawaRiver();
+                await loadTamagawaSagamigawaRiver();
 
                 // 石碑データを読み込み（上層に配置）
                 updateLoadingStatus('石碑データを読み込み中...');
@@ -473,6 +583,23 @@
 
         // ベースレイヤーの追加
         function addBaseLayers() {
+            // 国土地理院 淡色地図
+            map.addSource('pale', {
+                type: 'raster',
+                tiles: ['https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a>',
+                maxzoom: 18
+            });
+
+            map.addLayer({
+                id: 'pale',
+                type: 'raster',
+                source: 'pale',
+                paint: { 'raster-opacity': 1 },
+                layout: { visibility: 'none' }
+            });
+
             // 色別標高図
             map.addSource('relief', {
                 type: 'raster',
@@ -559,6 +686,23 @@
                 layout: { visibility: 'none' }
             });
 
+            // OpenStreetMap
+            map.addSource('osm', {
+                type: 'raster',
+                tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxzoom: 19
+            });
+
+            map.addLayer({
+                id: 'osm',
+                type: 'raster',
+                source: 'osm',
+                paint: { 'raster-opacity': 1 },
+                layout: { visibility: 'none' }
+            });
+
             // ESRI World Topo
             map.addSource('esri', {
                 type: 'raster',
@@ -572,7 +716,7 @@
                 id: 'esri',
                 type: 'raster',
                 source: 'esri',
-                paint: { 'raster-opacity': 0.5 },
+                paint: { 'raster-opacity': 1 },
                 layout: { visibility: 'none' }
             });
 
@@ -591,6 +735,16 @@
                 source: 'typhoon',
                 paint: { 'raster-opacity': 0.7 },
                 layout: { visibility: 'none' }
+            });
+
+            // Terrarium DEM (3D地形用)
+            map.addSource('terrarium-dem', {
+                type: 'raster-dem',
+                tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+                tileSize: 256,
+                attribution: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md">Tilezen Joerd</a>',
+                encoding: 'terrarium',
+                maxzoom: 15
             });
         }
 
@@ -1006,6 +1160,76 @@
             }
         }
 
+        // 利根川流路の読み込み
+        async function loadTonegawaRiver() {
+            try {
+                const response = await fetch('tonegawa_river_course.geojson');
+                const geojson = await response.json();
+
+                map.addSource('tonegawa', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                map.addLayer({
+                    id: 'tonegawa',
+                    type: 'line',
+                    source: 'tonegawa',
+                    paint: {
+                        'line-color': '#1c17ce',
+                        'line-width': [
+                            'case',
+                            ['==', ['get', 'W05_004'], '蛻ｩ譬ｹ蟾�'],
+                            6,
+                            3
+                        ],
+                        'line-opacity': 0.7
+                    },
+                    layout: { visibility: 'none' }
+                });
+
+                console.log('利根川流路読み込み完了');
+            } catch (error) {
+                console.error('利根川流路の読み込みエラー:', error);
+            }
+        }
+
+        // 多摩川・相模川流路の読み込み
+        async function loadTamagawaSagamigawaRiver() {
+            try {
+                const response = await fetch('tamagwa_sagamigawa_river_course.geojson');
+                const geojson = await response.json();
+
+                map.addSource('tamagawa', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                map.addLayer({
+                    id: 'tamagawa',
+                    type: 'line',
+                    source: 'tamagawa',
+                    paint: {
+                        'line-color': '#1c17ce',
+                        'line-width': [
+                            'case',
+                            ['==', ['get', 'W05_004'], '螟壽束蟾�'],
+                            6,
+                            ['==', ['get', 'W05_004'], '逶ｸ讓｡蟾�'],
+                            6,
+                            3
+                        ],
+                        'line-opacity': 0.7
+                    },
+                    layout: { visibility: 'none' }
+                });
+
+                console.log('多摩川・相模川流路読み込み完了');
+            } catch (error) {
+                console.error('多摩川・相模川流路の読み込みエラー:', error);
+            }
+        }
+
         // 決壊箇所マーカーの追加
         function addBreachMarkers() {
             const breachData = [
@@ -1177,6 +1401,30 @@
         function toggleLayer(layerId, visible) {
             const visibility = visible ? 'visible' : 'none';
 
+            // 国土地理院ベクタタイルの表示/非表示
+            if (layerId === 'gsi-vector') {
+                const style = map.getStyle();
+                if (style && style.layers) {
+                    style.layers.forEach(layer => {
+                        // 国土地理院のベクタタイルレイヤー（'v'で始まるソース）
+                        if (layer.source && (layer.source.startsWith('v') || layer.id === 'background')) {
+                            if (map.getLayer(layer.id)) {
+                                // 自分で追加したレイヤーは除外
+                                const excludeLayers = ['pale', 'relief', 'hillshade', 'konjaku', 'aerial',
+                                                      'std', 'osm', 'esri', 'typhoon', 'hazard', 'breach',
+                                                      'arakawa', 'tonegawa', 'tamagawa', 'denshouhi', 'books'];
+                                const isMonument = layer.id.startsWith('monuments-');
+
+                                if (!excludeLayers.includes(layer.id) && !isMonument) {
+                                    map.setLayoutProperty(layer.id, 'visibility', visibility);
+                                }
+                            }
+                        }
+                    });
+                }
+                return;
+            }
+
             if (map.getLayer(layerId)) {
                 map.setLayoutProperty(layerId, 'visibility', visibility);
             }
@@ -1188,7 +1436,6 @@
                     map.setLayoutProperty(fullLayerId, 'visibility', visibility);
                 }
             }
-
 
             // ハザードマップの凡例表示切替
             if (layerId === 'hazard') {
@@ -1205,6 +1452,51 @@
         function toggleLayerControl() {
             const content = document.getElementById('layer-control-content');
             content.classList.toggle('collapsed');
+        }
+
+        // 3D地形表示の切り替え
+        function toggle3DTerrain(enabled) {
+            const settingsControl = document.getElementById('settings-control');
+
+            if (enabled) {
+                // 3D地形を有効化
+                map.setTerrain({
+                    source: 'terrarium-dem',
+                    exaggeration: parseFloat(document.getElementById('exaggeration-slider').value)
+                });
+
+                // ピッチ（視点の傾き）を設定
+                map.setPitch(parseFloat(document.getElementById('pitch-slider').value));
+
+                // 3D設定パネルを表示
+                settingsControl.classList.add('show');
+            } else {
+                // 3D地形を無効化
+                map.setTerrain(null);
+
+                // ピッチを0に戻す（平面表示）
+                map.setPitch(0);
+
+                // 3D設定パネルを非表示
+                settingsControl.classList.remove('show');
+            }
+        }
+
+        // 地形の高さ倍率を更新
+        function updateExaggeration(value) {
+            document.getElementById('exaggeration-value').textContent = value;
+            if (map.getTerrain()) {
+                map.setTerrain({
+                    source: 'terrarium-dem',
+                    exaggeration: parseFloat(value)
+                });
+            }
+        }
+
+        // 視点の傾きを更新
+        function updatePitch(value) {
+            document.getElementById('pitch-value').textContent = value;
+            map.setPitch(parseFloat(value));
         }
 
         // URLパラメータから座標を取得して移動
