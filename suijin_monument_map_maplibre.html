@@ -1315,8 +1315,8 @@
             try {
                 console.log('ハザードマップ読み込み開始...');
 
-                // PMTilesファイルを読み込み（ズーム9-15対応版）
-                const pmtilesUrl = new URL('hazard_rivers_z9-15.pmtiles', window.location.href).href;
+                // PMTilesファイルを読み込み（ズーム9-15対応版） - Cloudflare R2から読み込み
+                const pmtilesUrl = 'https://pub-6f7d915a556b4c2aab93d0ad18fc694f.r2.dev/hazard_rivers_z9-15.pmtiles';
                 console.log('PMTiles URL:', pmtilesUrl);
 
                 const p = new pmtiles.PMTiles(pmtilesUrl);
