@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>3D洪水浸水想定区域マップ - 立体表示版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        #title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px 40px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #title h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: bold;
+            color: #d32f2f;
+        }
+        #title p {
+            margin: 10px 0 0 0;
+            font-size: 16px;
+            color: #666;
+        }
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 320px;
+            z-index: 1;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #controls h3 {
+            margin-top: 0;
+            font-size: 20px;
+            border-bottom: 3px solid #d32f2f;
+            padding-bottom: 10px;
+            color: #d32f2f;
+        }
+        #controls button {
+            margin: 8px 8px 8px 0;
+            padding: 12px 18px;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 15px;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        #controls button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .slider-container {
+            margin: 18px 0;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 15px;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #d32f2f;
+            cursor: pointer;
+        }
+        .value-display {
+            color: #d32f2f;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        #legend {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            min-width: 250px;
+        }
+        #legend h3 {
+            margin-top: 0;
+            font-size: 20px;
+            border-bottom: 3px solid #d32f2f;
+            padding-bottom: 10px;
+            color: #d32f2f;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 12px 0;
+            font-size: 15px;
+        }
+        .legend-color {
+            width: 50px;
+            height: 25px;
+            margin-right: 12px;
+            border: 2px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="title">
+        <h1>🌊 3D洪水浸水想定区域マップ</h1>
+        <p>埼玉県 荒川流域 - 浸水深を立体表示</p>
+    </div>
+
+    <div id="controls">
+        <h3>📍 ビューコントロール</h3>
+        <div>
+            <button onclick="flyToSaitama()">🏙️ 埼玉中心部</button>
+            <button onclick="flyToRiver()">🏞️ 荒川流域</button>
+        </div>
+        <div class="slider-container">
+            <label>立体の高さ: <span id="height-val" class="value-display">1000</span>m</label>
+            <input type="range" id="height-slider" min="100" max="3000" value="1000" step="100">
+        </div>
+        <div class="slider-container">
+            <label>視点角度: <span id="pitch-val" class="value-display">60</span>°</label>
+            <input type="range" id="pitch-slider" min="0" max="85" value="60" step="5">
+        </div>
+        <div class="slider-container">
+            <label>透明度: <span id="opacity-val" class="value-display">85</span>%</label>
+            <input type="range" id="opacity-slider" min="30" max="100" value="85" step="5">
+        </div>
+    </div>
+
+    <div id="legend">
+        <h3>📊 浸水深ランク</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #ffffb2;"></div>
+            <span><b>0.5m未満</b></span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #fecc5c;"></div>
+            <span><b>0.5～3.0m</b></span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #fd8d3c;"></div>
+            <span><b>3.0～5.0m</b></span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #f03b20;"></div>
+            <span><b>5.0～10.0m</b></span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #bd0026;"></div>
+            <span><b>10.0～20.0m</b></span>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // PMTiles プロトコルを追加
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+
+        let currentHeight = 1000;
+        let currentOpacity = 0.85;
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    // OpenStreetMap背景
+                    'osm': {
+                        type: 'raster',
+                        tiles: [
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    },
+                    // 洪水浸水想定区域（PMTiles）
+                    'hazard-rivers': {
+                        type: 'vector',
+                        url: 'pmtiles://./hazard_rivers_z9-15_utf8_fixed.pmtiles',
+                        attribution: '国土数値情報'
+                    }
+                },
+                layers: [
+                    {
+                        id: 'background',
+                        type: 'background',
+                        paint: {
+                            'background-color': '#f0f0f0'
+                        }
+                    },
+                    {
+                        id: 'osm-layer',
+                        type: 'raster',
+                        source: 'osm',
+                        paint: {
+                            'raster-opacity': 0.7
+                        }
+                    },
+                    // 3D立体表示レイヤー（fill-extrusion）
+                    {
+                        id: 'hazard-3d',
+                        type: 'fill-extrusion',
+                        source: 'hazard-rivers',
+                        'source-layer': 'rivers',
+                        paint: {
+                            // 浸水深ランクに応じた色
+                            'fill-extrusion-color': [
+                                'interpolate',
+                                ['linear'],
+                                ['get', 'A31a_205'],
+                                0, '#ffffb2',
+                                1, '#fecc5c',
+                                2, '#fd8d3c',
+                                3, '#f03b20',
+                                4, '#bd0026'
+                            ],
+                            // 浸水深ランクに応じた高さ（立体の高さ）
+                            'fill-extrusion-height': [
+                                'interpolate',
+                                ['linear'],
+                                ['get', 'A31a_205'],
+                                0, currentHeight * 0.2,    // 0.5m未満 → 低い
+                                1, currentHeight * 0.5,    // 0.5-3m
+                                2, currentHeight * 0.8,    // 3-5m
+                                3, currentHeight * 1.2,    // 5-10m
+                                4, currentHeight * 2.0     // 10-20m → 最も高い
+                            ],
+                            'fill-extrusion-base': 0,
+                            'fill-extrusion-opacity': currentOpacity
+                        }
+                    }
+                ]
+            },
+            center: [139.45, 35.85],
+            zoom: 10,
+            pitch: 60,
+            bearing: -20,
+            maxZoom: 17,
+            maxPitch: 85
+        });
+
+        map.addControl(new maplibregl.NavigationControl({
+            visualizePitch: true
+        }), 'bottom-left');
+        map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+        // 埼玉中心部へ
+        function flyToSaitama() {
+            map.flyTo({
+                center: [139.45, 35.85],
+                zoom: 11,
+                pitch: 60,
+                bearing: -20,
+                duration: 3000
+            });
+        }
+
+        // 荒川流域へ
+        function flyToRiver() {
+            map.flyTo({
+                center: [139.35, 36.05],
+                zoom: 12,
+                pitch: 70,
+                bearing: -45,
+                duration: 3000
+            });
+        }
+
+        // 立体の高さスライダー
+        document.getElementById('height-slider').addEventListener('input', (e) => {
+            currentHeight = parseInt(e.target.value);
+            map.setPaintProperty('hazard-3d', 'fill-extrusion-height', [
+                'interpolate',
+                ['linear'],
+                ['get', 'A31a_205'],
+                0, currentHeight * 0.2,
+                1, currentHeight * 0.5,
+                2, currentHeight * 0.8,
+                3, currentHeight * 1.2,
+                4, currentHeight * 2.0
+            ]);
+            document.getElementById('height-val').textContent = currentHeight;
+        });
+
+        // 視点角度スライダー
+        document.getElementById('pitch-slider').addEventListener('input', (e) => {
+            const pitch = parseInt(e.target.value);
+            map.easeTo({ pitch: pitch, duration: 500 });
+            document.getElementById('pitch-val').textContent = pitch;
+        });
+
+        // 透明度スライダー
+        document.getElementById('opacity-slider').addEventListener('input', (e) => {
+            currentOpacity = parseInt(e.target.value) / 100;
+            map.setPaintProperty('hazard-3d', 'fill-extrusion-opacity', currentOpacity);
+            document.getElementById('opacity-val').textContent = e.target.value;
+        });
+
+        map.on('load', () => {
+            console.log('3D立体表示マップ読み込み完了');
+        });
+
+        map.on('error', (e) => {
+            console.error('エラー:', e);
+        });
+    </script>
+</body>
+</html>

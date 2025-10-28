@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>3D地形デモ - 国土地理院標高タイル</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 5px;
+            font-family: sans-serif;
+            max-width: 300px;
+            z-index: 1;
+        }
+        #info h3 { margin-top: 0; }
+        #info button {
+            margin: 5px 5px 5px 0;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>3D地形デモ</h3>
+        <p>国土地理院の標高タイルを使用した3D地形表示</p>
+        <button onclick="flyToMtFuji()">富士山へ</button>
+        <button onclick="flyToSaitama()">埼玉へ</button>
+        <br>
+        <button onclick="toggleExaggeration()">誇張: <span id="exag">1.5</span>x</button>
+        <button onclick="togglePitch()">角度: <span id="pitch-val">60</span>°</button>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        // PMTiles プロトコルを追加
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    // Mapzen/AWS標高タイル（Terrarium形式）
+                    'terrain-dem': {
+                        type: 'raster-dem',
+                        tiles: [
+                            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+                        ],
+                        attribution: '<a href="https://github.com/tilezen/joerd/blob/master/docs/attribution.md" target="_blank">Mapzen terrarium</a>',
+                        tileSize: 256,
+                        encoding: 'terrarium'
+                    },
+                    // 国土地理院 淡色地図
+                    'gsi-pale': {
+                        type: 'raster',
+                        tiles: [
+                            'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png'
+                        ],
+                        tileSize: 256,
+                        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+                    },
+                    // 洪水浸水想定区域（すでに作成したPMTiles）
+                    'hazard-rivers': {
+                        type: 'vector',
+                        url: 'pmtiles://./hazard_rivers_z9-15_utf8_fixed.pmtiles',
+                        attribution: '国土数値情報'
+                    }
+                },
+                terrain: {
+                    source: 'terrain-dem',
+                    exaggeration: 1.5  // 標高を1.5倍に誇張して見やすく
+                },
+                layers: [
+                    {
+                        id: 'background',
+                        type: 'background',
+                        paint: {
+                            'background-color': '#e0e0e0'
+                        }
+                    },
+                    {
+                        id: 'gsi-pale-layer',
+                        type: 'raster',
+                        source: 'gsi-pale',
+                        paint: {
+                            'raster-opacity': 0.8
+                        }
+                    },
+                    // 洪水浸水想定区域レイヤー
+                    {
+                        id: 'hazard-fill',
+                        type: 'fill',
+                        source: 'hazard-rivers',
+                        'source-layer': 'rivers',
+                        paint: {
+                            'fill-color': [
+                                'interpolate',
+                                ['linear'],
+                                ['get', 'A31a_205'],
+                                0, '#fee5d9',
+                                1, '#fcae91',
+                                2, '#fb6a4a',
+                                3, '#de2d26',
+                                4, '#a50f15'
+                            ],
+                            'fill-opacity': 0.6
+                        }
+                    }
+                ]
+            },
+            center: [139.45, 35.85],  // 埼玉県中心付近
+            zoom: 10,
+            pitch: 60,  // 斜め視点
+            bearing: 0,
+            maxZoom: 17,
+            maxPitch: 85
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+        map.addControl(new maplibregl.ScaleControl());
+
+        // 富士山へ飛ぶ
+        function flyToMtFuji() {
+            map.flyTo({
+                center: [138.7274, 35.3606],
+                zoom: 12,
+                pitch: 75,
+                bearing: 0,
+                duration: 3000
+            });
+        }
+
+        // 埼玉へ飛ぶ
+        function flyToSaitama() {
+            map.flyTo({
+                center: [139.45, 35.85],
+                zoom: 11,
+                pitch: 60,
+                bearing: 0,
+                duration: 3000
+            });
+        }
+
+        let exaggeration = 1.5;
+        function toggleExaggeration() {
+            exaggeration = exaggeration === 1.5 ? 3.0 : 1.5;
+            map.setTerrain({
+                source: 'terrain-dem',
+                exaggeration: exaggeration
+            });
+            document.getElementById('exag').textContent = exaggeration;
+        }
+
+        let pitch = 60;
+        function togglePitch() {
+            pitch = pitch === 60 ? 0 : 60;
+            map.easeTo({ pitch: pitch });
+            document.getElementById('pitch-val').textContent = pitch;
+        }
+
+        map.on('load', () => {
+            console.log('地図読み込み完了');
+        });
+
+        map.on('error', (e) => {
+            console.error('エラー:', e);
+        });
+    </script>
+</body>
+</html>

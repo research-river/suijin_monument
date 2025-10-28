@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>テスト - 単色表示</title>
+    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/pmtiles@3.0.7/dist/pmtiles.js"></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+        let protocol = new pmtiles.Protocol();
+        maplibregl.addProtocol('pmtiles', protocol.tile);
+
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256
+                    },
+                    'hazard': {
+                        type: 'vector',
+                        url: 'pmtiles://./hazard_rivers_z9-15_utf8_fixed.pmtiles'
+                    }
+                },
+                layers: [
+                    { id: 'bg', type: 'background', paint: { 'background-color': '#f0f0f0' } },
+                    { id: 'osm', type: 'raster', source: 'osm' },
+                    {
+                        id: 'hazard-fill',
+                        type: 'fill',
+                        source: 'hazard',
+                        'source-layer': 'rivers',
+                        paint: {
+                            'fill-color': '#ff0000',  // 単純に赤色
+                            'fill-opacity': 0.6
+                        }
+                    }
+                ]
+            },
+            center: [139.45, 35.85],
+            zoom: 10
+        });
+
+        map.addControl(new maplibregl.NavigationControl());
+
+        map.on('load', () => {
+            console.log('Map loaded');
+            console.log('Sources:', map.getStyle().sources);
+            console.log('Layers:', map.getStyle().layers);
+        });
+
+        // クリックして属性情報を表示
+        map.on('click', 'hazard-fill', (e) => {
+            console.log('Feature properties:', e.features[0].properties);
+            alert('属性情報: ' + JSON.stringify(e.features[0].properties, null, 2));
+        });
+
+        map.on('error', (e) => {
+            console.error('Error:', e);
+        });
+    </script>
+</body>
+</html>

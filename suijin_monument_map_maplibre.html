@@ -1501,7 +1501,7 @@
             document.getElementById('exaggeration-value').textContent = value;
             if (map.getTerrain()) {
                 map.setTerrain({
-                    source: 'gsi-dem',
+                    source: 'terrarium-dem',
                     exaggeration: parseFloat(value)
                 });
             }
