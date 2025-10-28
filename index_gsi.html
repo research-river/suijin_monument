@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>荒川流域 水神碑・水神祠調査地図 (国土地理院3D版)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Hiragino Sans', 'Yu Gothic UI', sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* コントロールパネル */
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-width: 300px;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 1;
+        }
+
+        .control-panel h3 {
+            margin: 0 0 15px 0;
+            font-size: 16px;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+        }
+
+        .value-display {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .checkbox-group {
+            margin: 8px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .checkbox-group label {
+            font-weight: normal;
+            cursor: pointer;
+        }
+
+        /* ズームレベル表示 */
+        .zoom-level {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1;
+        }
+
+        /* ローディング */
+        .loading {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <div id="loading" class="loading">地図を読み込み中...</div>
+
+    <div class="zoom-level" id="zoom-level">ズーム: 11</div>
+
+    <div class="control-panel">
+        <h3>3D地形設定（国土地理院DEM）</h3>
+
+        <div class="control-group">
+            <label>地形の高さ倍率: <span id="exaggeration-val" class="value-display">1.0</span></label>
+            <input type="range" id="exaggeration-slider" min="0.1" max="5.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="control-group">
+            <label>視点の傾き: <span id="pitch-val" class="value-display">45</span>°</label>
+            <input type="range" id="pitch-slider" min="0" max="85" step="5" value="45">
+        </div>
+
+        <h3 style="margin-top: 20px;">レイヤー表示</h3>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="layer-3d" checked>
+            <label for="layer-3d">3D地形表示</label>
+        </div>
+
+        <div class="checkbox-group">
+            <input type="checkbox" id="layer-monuments" checked>
+            <label for="layer-monuments">水神碑・水神祠</label>
+        </div>
+    </div>
+
+    <script type="module" src="/main.js"></script>
+</body>
+</html>

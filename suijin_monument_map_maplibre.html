@@ -1473,7 +1473,7 @@
             const settingsControl = document.getElementById('settings-control');
 
             if (enabled) {
-                // 3D地形を有効化
+                // 3D地形を有効化（Terrarium DEM使用）
                 map.setTerrain({
                     source: 'terrarium-dem',
                     exaggeration: parseFloat(document.getElementById('exaggeration-slider').value)
@@ -1501,7 +1501,7 @@
             document.getElementById('exaggeration-value').textContent = value;
             if (map.getTerrain()) {
                 map.setTerrain({
-                    source: 'terrarium-dem',
+                    source: 'gsi-dem',
                     exaggeration: parseFloat(value)
                 });
             }

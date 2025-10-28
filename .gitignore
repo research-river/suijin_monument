@@ -5,6 +5,10 @@ merged_rivers.geojson
 hazard_rivers.pmtiles
 hazard_rivers_z6-15.pmtiles
 
+# 大きすぎるPMTilesファイル（R2でホスト）
+hazard_rivers_z9-15.pmtiles
+hazard_rivers_z9-15_*.pmtiles
+
 # ローカル開発用
 server.py
 __pycache__/
@@ -20,3 +24,43 @@ test_hazard_map.html
 
 # その他
 *.mbtiles
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Vite build output
+dist/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+dem_conversion.log
+tippecanoe_fixed.log
+tippecanoe_utf8_fixed.log
+
+# 大きすぎるデータディレクトリ
+DEM_ALL_XML/
+dem_geotiff/
+dem_test/
+rivers_geojson/
+利根川流路geojson/
+多摩川・相模川流路geojson/
+shp整理/
+もとのsuijin_monument_mapフォルダに入っていた者でGithubに登録できないもの/
+
+# 中間ファイル
+*.vrt
+*.cpg
+*.dbf
+*.prj
+*.shp
+*.shx
+merged_rivers_*.geojson
+merged_flood_date.*
+
+# Python scripts (開発用ツール)
+*.py
+!server.py
