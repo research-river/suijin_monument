@@ -15,6 +15,9 @@
     <!-- PapaParse for CSV parsing -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
+    <!-- toGeoJSON for GPX parsing -->
+    <script src="https://unpkg.com/@mapbox/togeojson@0.16.2/togeojson.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -296,10 +299,48 @@
             color: #333;
             font-weight: bold;
         }
+
+        /* カスタムアトリビューション */
+        .custom-attribution {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2px 8px;
+            font-size: 10px;
+            color: #333;
+            max-width: 80%;
+            z-index: 10;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        .custom-attribution::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .custom-attribution::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 2px;
+        }
+
+        .custom-attribution a {
+            color: #0078A8;
+            text-decoration: none;
+        }
+
+        .custom-attribution a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
+    <!-- カスタムアトリビューション表示 -->
+    <div class="custom-attribution" id="custom-attribution"></div>
 
     <div id="loading" class="loading">地図を読み込み中...</div>
 
@@ -444,6 +485,18 @@
                     <input type="checkbox" id="layer-tamagawa" onchange="toggleLayer('tamagawa', this.checked)">
                     <label for="layer-tamagawa">多摩川・相模川本流と支流</label>
                 </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-kml-track" onchange="toggleKMLLayer(this.checked)">
+                    <label for="layer-kml-track">矢那瀬の水神様へのルート</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-kml-track2" onchange="toggleKML2Layer(this.checked)">
+                    <label for="layer-kml-track2">金石水管橋、蓬莱島へのルート</label>
+                </div>
+                <div class="layer-item">
+                    <input type="checkbox" id="layer-bear" onchange="toggleLayer('bear', this.checked)">
+                    <label for="layer-bear">熊出没地図</label>
+                </div>
             </div>
 
             <div class="separator"></div>
@@ -480,6 +533,48 @@
         let monumentsData = [];
         let booksData = [];
         let currentPopup = null;
+
+        // アトリビューション情報の定義
+        const attributions = {
+            'gsi-vector': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'pale': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'relief': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'hillshade': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'konjaku': '&copy; <a href="http://ktgis.net/kjmapw/" target="_blank">今昔マップ on the web</a>',
+            'aerial': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'std': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'osm': '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+            'esri': 'Tiles &copy; <a href="https://www.esri.com/" target="_blank">Esri</a>',
+            'typhoon': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'hazard': '&copy; <a href="https://disaportal.gsi.go.jp/" target="_blank">国土地理院ハザードマップポータルサイト</a>',
+            'denshouhi': '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+            'bear': '熊出没データ &copy; <a href="https://public.sharp9110.com/view/allposts/bear" target="_blank">sharp9110.com</a>',
+            'arakawa': '&copy; <a href="https://nlftp.mlit.go.jp/ksj/" target="_blank">国土数値情報（河川データ）</a>',
+            'tonegawa': '&copy; <a href="https://nlftp.mlit.go.jp/ksj/" target="_blank">国土数値情報（河川データ）</a>',
+            'tamagawa': '&copy; <a href="https://nlftp.mlit.go.jp/ksj/" target="_blank">国土数値情報（河川データ）</a>'
+        };
+
+        // 現在表示中のレイヤーを追跡
+        let visibleLayers = new Set(['gsi-vector', 'relief', 'hillshade']);
+
+        // アトリビューション表示を更新
+        function updateAttribution() {
+            const attributionEl = document.getElementById('custom-attribution');
+            const uniqueAttributions = new Set();
+
+            // 表示中のレイヤーのアトリビューションを収集
+            visibleLayers.forEach(layerId => {
+                if (attributions[layerId]) {
+                    uniqueAttributions.add(attributions[layerId]);
+                }
+            });
+
+            // MapLibre GL JSのクレジットを追加
+            uniqueAttributions.add('&copy; <a href="https://maplibre.org/" target="_blank">MapLibre</a>');
+
+            // HTML生成
+            attributionEl.innerHTML = Array.from(uniqueAttributions).join(' | ');
+        }
 
         // PMTiles プロトコル登録
         let protocol = new pmtiles.Protocol();
@@ -528,7 +623,7 @@
             map.addControl(new maplibregl.NavigationControl({
                 visualizePitch: true  // 3D表示時のピッチ可視化
             }), 'top-left');
-            map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+            map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
             // 3D地形表示時の慣性スクロール対策
             const stopAllAnimations = () => {
@@ -551,6 +646,9 @@
                 // 基本レイヤーをすぐに追加
                 addBaseLayers();
 
+                // 初期アトリビューションを表示
+                updateAttribution();
+
                 // ハザードマップを最初に読み込み（下層に配置）
                 updateLoadingStatus('ハザードマップを読み込み中...');
                 addBreachMarkers();
@@ -570,6 +668,10 @@
                 setTimeout(() => {
                     loadBooks();
                     loadDenshouhi();
+                    loadGPXTrack();
+                    loadKMLTrack();
+                    loadKML2Track();
+                    loadBearData();
                 }, 100);
 
                 document.getElementById('loading').style.display = 'none';
@@ -1244,6 +1346,668 @@
             }
         }
 
+        // GPXトラックの読み込み
+        async function loadGPXTrack() {
+            try {
+                const response = await fetch('20250417_a.gpx');
+                const gpxText = await response.text();
+
+                // XMLパース
+                const parser = new DOMParser();
+                const gpxDoc = parser.parseFromString(gpxText, 'text/xml');
+
+                // toGeoJSONでGeoJSONに変換
+                const geojson = toGeoJSON.gpx(gpxDoc);
+
+                console.log('GPX GeoJSON:', geojson);
+
+                // 最初と最後の座標を取得（スタート/ゴール地点）
+                let startCoord = null;
+                let endCoord = null;
+
+                if (geojson.features && geojson.features.length > 0) {
+                    // LineString の座標を取得
+                    const coords = geojson.features[0].geometry.coordinates;
+                    if (coords && coords.length > 0) {
+                        startCoord = coords[0];
+                        endCoord = coords[coords.length - 1];
+                    }
+                }
+
+                // GPXトラックのソースを追加
+                map.addSource('gpx-track', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                // GPXトラックのラインレイヤーを追加
+                map.addLayer({
+                    id: 'gpx-track-line',
+                    type: 'line',
+                    source: 'gpx-track',
+                    paint: {
+                        'line-color': '#FF1493',  // ディープピンク色
+                        'line-width': 4,
+                        'line-opacity': 0.8
+                    },
+                    layout: { visibility: 'none' },
+                    filter: ['==', '$type', 'LineString']
+                });
+
+                // スタート地点のマーカーを追加
+                if (startCoord) {
+                    map.addSource('gpx-start', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: startCoord
+                            },
+                            properties: {
+                                title: 'スタート'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'gpx-start-marker',
+                        type: 'circle',
+                        source: 'gpx-start',
+                        paint: {
+                            'circle-radius': 8,
+                            'circle-color': '#00FF00',  // 緑色
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 2
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // スタートラベル
+                    map.addLayer({
+                        id: 'gpx-start-label',
+                        type: 'symbol',
+                        source: 'gpx-start',
+                        layout: {
+                            'text-field': 'スタート',
+                            'text-size': 12,
+                            'text-offset': [0, -1.5],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                // ゴール地点のマーカーを追加
+                if (endCoord) {
+                    map.addSource('gpx-end', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: endCoord
+                            },
+                            properties: {
+                                title: 'ゴール'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'gpx-end-marker',
+                        type: 'circle',
+                        source: 'gpx-end',
+                        paint: {
+                            'circle-radius': 8,
+                            'circle-color': '#FF0000',  // 赤色
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 2
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // ゴールラベル
+                    map.addLayer({
+                        id: 'gpx-end-label',
+                        type: 'symbol',
+                        source: 'gpx-end',
+                        layout: {
+                            'text-field': 'ゴール',
+                            'text-size': 12,
+                            'text-offset': [0, -1.5],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                console.log('GPXトラック読み込み完了');
+            } catch (error) {
+                console.error('GPXトラックの読み込みエラー:', error);
+            }
+        }
+
+        // GPXレイヤーの表示切替
+        function toggleGPXLayer(visible) {
+            const visibility = visible ? 'visible' : 'none';
+
+            if (map.getLayer('gpx-track-line')) {
+                map.setLayoutProperty('gpx-track-line', 'visibility', visibility);
+            }
+            if (map.getLayer('gpx-start-marker')) {
+                map.setLayoutProperty('gpx-start-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('gpx-start-label')) {
+                map.setLayoutProperty('gpx-start-label', 'visibility', visibility);
+            }
+            if (map.getLayer('gpx-end-marker')) {
+                map.setLayoutProperty('gpx-end-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('gpx-end-label')) {
+                map.setLayoutProperty('gpx-end-label', 'visibility', visibility);
+            }
+
+            // 表示状態を追跡
+            if (visible) {
+                visibleLayers.add('gpx-track');
+            } else {
+                visibleLayers.delete('gpx-track');
+            }
+            updateAttribution();
+        }
+
+        // KMLトラック（清書版）の読み込み
+        async function loadKMLTrack() {
+            try {
+                const response = await fetch('yorii_walking_route.kml');
+                const kmlText = await response.text();
+
+                // XMLパース
+                const parser = new DOMParser();
+                const kmlDoc = parser.parseFromString(kmlText, 'text/xml');
+
+                // toGeoJSONでGeoJSONに変換
+                const geojson = toGeoJSON.kml(kmlDoc);
+
+                console.log('KML GeoJSON:', geojson);
+
+                // 最初と最後の座標を取得（スタート/ゴール地点）
+                let startCoord = null;
+                let endCoord = null;
+
+                if (geojson.features && geojson.features.length > 0) {
+                    // 最初のLineStringを探す
+                    for (let feature of geojson.features) {
+                        if (feature.geometry && feature.geometry.type === 'LineString') {
+                            const coords = feature.geometry.coordinates;
+                            if (coords && coords.length > 0) {
+                                startCoord = coords[0];
+                                endCoord = coords[coords.length - 1];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // KMLトラックのソースを追加
+                map.addSource('kml-track', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                // KMLトラックのラインレイヤーを追加（青色で清書版を表示）
+                map.addLayer({
+                    id: 'kml-track-line',
+                    type: 'line',
+                    source: 'kml-track',
+                    paint: {
+                        'line-color': '#4169E1',  // ロイヤルブルー
+                        'line-width': 5,
+                        'line-opacity': 0.7
+                    },
+                    layout: { visibility: 'none' },
+                    filter: ['==', '$type', 'LineString']
+                });
+
+                // スタート地点のマーカーを追加
+                if (startCoord) {
+                    map.addSource('kml-start', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: startCoord
+                            },
+                            properties: {
+                                title: 'スタート'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'kml-start-marker',
+                        type: 'circle',
+                        source: 'kml-start',
+                        paint: {
+                            'circle-radius': 10,
+                            'circle-color': '#32CD32',  // ライムグリーン
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 3
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // スタートラベル
+                    map.addLayer({
+                        id: 'kml-start-label',
+                        type: 'symbol',
+                        source: 'kml-start',
+                        layout: {
+                            'text-field': 'スタート',
+                            'text-size': 14,
+                            'text-offset': [0, -1.8],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                // ゴール地点のマーカーを追加
+                if (endCoord) {
+                    map.addSource('kml-end', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: endCoord
+                            },
+                            properties: {
+                                title: 'ゴール'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'kml-end-marker',
+                        type: 'circle',
+                        source: 'kml-end',
+                        paint: {
+                            'circle-radius': 10,
+                            'circle-color': '#DC143C',  // クリムゾンレッド
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 3
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // ゴールラベル
+                    map.addLayer({
+                        id: 'kml-end-label',
+                        type: 'symbol',
+                        source: 'kml-end',
+                        layout: {
+                            'text-field': 'ゴール',
+                            'text-size': 14,
+                            'text-offset': [0, -1.8],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                console.log('KMLトラック（清書版）読み込み完了');
+            } catch (error) {
+                console.error('KMLトラックの読み込みエラー:', error);
+            }
+        }
+
+        // KMLレイヤーの表示切替
+        function toggleKMLLayer(visible) {
+            const visibility = visible ? 'visible' : 'none';
+
+            if (map.getLayer('kml-track-line')) {
+                map.setLayoutProperty('kml-track-line', 'visibility', visibility);
+            }
+            if (map.getLayer('kml-start-marker')) {
+                map.setLayoutProperty('kml-start-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('kml-start-label')) {
+                map.setLayoutProperty('kml-start-label', 'visibility', visibility);
+            }
+            if (map.getLayer('kml-end-marker')) {
+                map.setLayoutProperty('kml-end-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('kml-end-label')) {
+                map.setLayoutProperty('kml-end-label', 'visibility', visibility);
+            }
+
+            // 表示状態を追跡
+            if (visible) {
+                visibleLayers.add('kml-track');
+            } else {
+                visibleLayers.delete('kml-track');
+            }
+            updateAttribution();
+        }
+
+        // KML2トラック（activity_18803138183.kml）の読み込み
+        async function loadKML2Track() {
+            try {
+                const response = await fetch('activity_18803138183.kml');
+                const kmlText = await response.text();
+
+                // XMLパース
+                const parser = new DOMParser();
+                const kmlDoc = parser.parseFromString(kmlText, 'text/xml');
+
+                // toGeoJSONでGeoJSONに変換
+                const geojson = toGeoJSON.kml(kmlDoc);
+
+                console.log('KML2 GeoJSON:', geojson);
+
+                // 最初と最後の座標を取得（スタート/ゴール地点）
+                let startCoord = null;
+                let endCoord = null;
+
+                if (geojson.features && geojson.features.length > 0) {
+                    // 最初のLineStringを探す
+                    for (let feature of geojson.features) {
+                        if (feature.geometry && feature.geometry.type === 'LineString') {
+                            const coords = feature.geometry.coordinates;
+                            if (coords && coords.length > 0) {
+                                startCoord = coords[0];
+                                endCoord = coords[coords.length - 1];
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // KML2トラックのソースを追加
+                map.addSource('kml-track2', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                // KML2トラックのラインレイヤーを追加（オレンジ色）
+                map.addLayer({
+                    id: 'kml-track2-line',
+                    type: 'line',
+                    source: 'kml-track2',
+                    paint: {
+                        'line-color': '#FF8C00',  // ダークオレンジ
+                        'line-width': 5,
+                        'line-opacity': 0.7
+                    },
+                    layout: { visibility: 'none' },
+                    filter: ['==', '$type', 'LineString']
+                });
+
+                // スタート地点のマーカーを追加
+                if (startCoord) {
+                    map.addSource('kml2-start', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: startCoord
+                            },
+                            properties: {
+                                title: 'スタート'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'kml2-start-marker',
+                        type: 'circle',
+                        source: 'kml2-start',
+                        paint: {
+                            'circle-radius': 10,
+                            'circle-color': '#32CD32',  // ライムグリーン
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 3
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // スタートラベル
+                    map.addLayer({
+                        id: 'kml2-start-label',
+                        type: 'symbol',
+                        source: 'kml2-start',
+                        layout: {
+                            'text-field': 'スタート',
+                            'text-size': 14,
+                            'text-offset': [0, -1.8],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                // ゴール地点のマーカーを追加
+                if (endCoord) {
+                    map.addSource('kml2-end', {
+                        type: 'geojson',
+                        data: {
+                            type: 'Feature',
+                            geometry: {
+                                type: 'Point',
+                                coordinates: endCoord
+                            },
+                            properties: {
+                                title: 'ゴール'
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        id: 'kml2-end-marker',
+                        type: 'circle',
+                        source: 'kml2-end',
+                        paint: {
+                            'circle-radius': 10,
+                            'circle-color': '#DC143C',  // クリムゾンレッド
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-stroke-width': 3
+                        },
+                        layout: { visibility: 'none' }
+                    });
+
+                    // ゴールラベル
+                    map.addLayer({
+                        id: 'kml2-end-label',
+                        type: 'symbol',
+                        source: 'kml2-end',
+                        layout: {
+                            'text-field': 'ゴール',
+                            'text-size': 14,
+                            'text-offset': [0, -1.8],
+                            'text-anchor': 'top',
+                            visibility: 'none'
+                        },
+                        paint: {
+                            'text-color': '#000000',
+                            'text-halo-color': '#FFFFFF',
+                            'text-halo-width': 2
+                        }
+                    });
+                }
+
+                console.log('KML2トラック（activity_18803138183）読み込み完了');
+            } catch (error) {
+                console.error('KML2トラックの読み込みエラー:', error);
+            }
+        }
+
+        // KML2レイヤーの表示切替
+        function toggleKML2Layer(visible) {
+            const visibility = visible ? 'visible' : 'none';
+
+            if (map.getLayer('kml-track2-line')) {
+                map.setLayoutProperty('kml-track2-line', 'visibility', visibility);
+            }
+            if (map.getLayer('kml2-start-marker')) {
+                map.setLayoutProperty('kml2-start-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('kml2-start-label')) {
+                map.setLayoutProperty('kml2-start-label', 'visibility', visibility);
+            }
+            if (map.getLayer('kml2-end-marker')) {
+                map.setLayoutProperty('kml2-end-marker', 'visibility', visibility);
+            }
+            if (map.getLayer('kml2-end-label')) {
+                map.setLayoutProperty('kml2-end-label', 'visibility', visibility);
+            }
+
+            // 表示状態を追跡
+            if (visible) {
+                visibleLayers.add('kml-track2');
+            } else {
+                visibleLayers.delete('kml-track2');
+            }
+            updateAttribution();
+        }
+
+        // 熊出没地図の読み込み
+        async function loadBearData() {
+            try {
+                const response = await fetch('熊出没.geojson');
+                const bearData = await response.json();
+
+                console.log('熊出没データ:', bearData);
+
+                // JSON配列をGeoJSONのFeatureCollectionに変換
+                const features = bearData.map(item => ({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [item.Longitude, item.Latitude]
+                    },
+                    properties: {
+                        PostId: item.PostId,
+                        IssueDate: item.IssueDate,
+                        PrefectureName: item.PrefectureName,
+                        CityName: item.CityName,
+                        SectionNameText: item.SectionNameText,
+                        IssueComment: item.IssueComment,
+                        HeadCount: item.HeadCount
+                    }
+                }));
+
+                const geojson = {
+                    type: 'FeatureCollection',
+                    features: features
+                };
+
+                map.addSource('bear', {
+                    type: 'geojson',
+                    data: geojson
+                });
+
+                // 熊の赤いマーカーアイコンを作成
+                const bearPinSvg = `
+                    <svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M15,0 C6.7,0 0,6.7 0,15 C0,23.3 15,40 15,40 C15,40 30,23.3 30,15 C30,6.7 23.3,0 15,0 Z"
+                              fill="#DC143C" stroke="#8B0000" stroke-width="2"/>
+                        <text x="15" y="18" font-size="16" text-anchor="middle" fill="#FFFFFF" font-weight="bold">🐻</text>
+                    </svg>
+                `;
+                const bearPinImage = new Image(30, 40);
+                bearPinImage.onload = () => {
+                    if (!map.hasImage('bear-pin')) {
+                        map.addImage('bear-pin', bearPinImage);
+                    }
+                };
+                bearPinImage.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(bearPinSvg);
+
+                // シンボルレイヤーとして追加（赤い熊マーカー）
+                map.addLayer({
+                    id: 'bear',
+                    type: 'symbol',
+                    source: 'bear',
+                    layout: {
+                        'icon-image': 'bear-pin',
+                        'icon-size': 0.8,
+                        'icon-anchor': 'bottom',
+                        'icon-allow-overlap': true,
+                        visibility: 'none'
+                    }
+                });
+
+                // クリックイベント
+                map.on('click', 'bear', (e) => {
+                    if (!e.features || e.features.length === 0) return;
+
+                    const props = e.features[0].properties;
+                    const issueDate = new Date(props.IssueDate).toLocaleString('ja-JP');
+
+                    if (currentPopup) {
+                        currentPopup.remove();
+                    }
+
+                    currentPopup = new maplibregl.Popup({ maxWidth: '350px' })
+                        .setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div style="font-family: sans-serif; font-size: 12px; padding: 10px;">
+                                <div style="font-weight: bold; margin-bottom: 8px; color: #DC143C; font-size: 14px;">🐻 熊目撃情報</div>
+                                <div style="margin-bottom: 4px;"><b>発生日時:</b> ${issueDate}</div>
+                                <div style="margin-bottom: 4px;"><b>場所:</b> ${props.PrefectureName || ''}${props.CityName || ''}${props.SectionNameText || ''}</div>
+                                <div style="margin-bottom: 4px;"><b>目撃頭数:</b> ${props.HeadCount || '不明'}頭</div>
+                                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd;">
+                                    <b>詳細:</b><br>
+                                    <div style="margin-top: 4px; color: #555;">${props.IssueComment || ''}</div>
+                                </div>
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+
+                // カーソル変更
+                map.on('mouseenter', 'bear', () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', 'bear', () => {
+                    map.getCanvas().style.cursor = '';
+                });
+
+                console.log('熊出没地図読み込み完了:', features.length, '件');
+            } catch (error) {
+                console.error('熊出没地図の読み込みエラー:', error);
+            }
+        }
+
         // 決壊箇所マーカーの追加
         function addBreachMarkers() {
             const breachData = [
@@ -1415,6 +2179,13 @@
         function toggleLayer(layerId, visible) {
             const visibility = visible ? 'visible' : 'none';
 
+            // 表示状態を追跡
+            if (visible) {
+                visibleLayers.add(layerId);
+            } else {
+                visibleLayers.delete(layerId);
+            }
+
             // 国土地理院ベクタタイルの表示/非表示
             if (layerId === 'gsi-vector') {
                 const style = map.getStyle();
@@ -1436,6 +2207,7 @@
                         }
                     });
                 }
+                updateAttribution();
                 return;
             }
 
@@ -1460,6 +2232,9 @@
                     legend.classList.remove('show');
                 }
             }
+
+            // アトリビューション更新
+            updateAttribution();
         }
 
         // レイヤーコントロールの開閉
