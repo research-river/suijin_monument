@@ -77,6 +77,37 @@
             flex-shrink: 0;
         }
 
+        .legend-marker {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        /* 石碑マーカー凡例 */
+        .monument-legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            max-width: 250px;
+        }
+
+        .preservation-note {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #555;
+        }
+
         /* ローディング表示 */
         .loading {
             position: absolute;
@@ -346,6 +377,30 @@
 
     <!-- ズームレベル表示 -->
     <div class="zoom-level" id="zoom-level">ズーム: 11</div>
+
+    <!-- 石碑マーカー凡例 -->
+    <div class="monument-legend">
+        <div class="legend-title">石碑マーカー凡例</div>
+        <div class="legend-item">
+            <span class="legend-marker" style="background: Lightblue; border: 2px solid Blue;"></span>
+            <span>水神碑・水天宮碑</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-marker" style="background: Lightgreen; border: 2px solid green;"></span>
+            <span>九頭龍・龍神碑</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-marker" style="background: Orange; border: 2px solid Darkred;"></span>
+            <span>弁才天碑・市杵島姫命碑</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-marker" style="background: darkgreen; border: 2px solid darkgreen;"></span>
+            <span>その他</span>
+        </div>
+        <div class="preservation-note">
+            ★★★★★ = 保存状態が良好
+        </div>
+    </div>
 
     <div class="legend" id="hazard-legend">
         <div class="legend-title">浸水深レベル</div>
@@ -960,9 +1015,8 @@
                         <b>所在地:</b> ${props.address || ''}<br>
                         <b>座標:</b> ${props.coordinates_dms || ''}<br>
                         <b>銘文:</b> ${props.inscription || ''}<br>
-                        <b>コメント:</b> ${props.comment || ''}<br>
-                        <b>水難よけ:</b> ${props['水難避け'] || ''}<br>
-                        <b>働きについて:</b> ${props['機能の解説　水難避けなら○　(舟運の安全祈願も水難避けとして含む)'] || ''}<br>
+                        <b>コメント:</b> ${props['Condition comment'] || ''}<br>
+                        <b>保存状態:</b> ${props['Deterioration level'] || ''}<br>
                         <b>調査日:</b> ${props.Survey_date || ''}
                     </div>
                     ${photoHtml}
